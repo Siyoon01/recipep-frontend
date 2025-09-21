@@ -1,62 +1,42 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
-import { useGlobalLoading } from '../components/LoadingProvider';
 import './Mypage.css';
-
-// 조리도구 리스트
-const TOOLS_LIST = [
-  '냄비', '프라이팬', '볼', '계량스푼', '키친타올', '계량컵', 
-  '전자레인지', '에어프라이어', '오븐', '찜기', '내열용기', '밀폐용기', 
-  '믹서기', '거품기', '스텐트레이', '랩', '매셔', '전기밥솥', '면보', '체망', '토치'
-];
-
-// state 초기 객체 생성 함수
-const InitialState = (list) => {
-  const initialState = {};
-  list.forEach(item => {
-    initialState[item] = false;
-  });
-  return initialState;
-};
-
-// 알레르기 리스트
-const ALLERGIES_LIST = [
-  '① 난류(가금류)', '② 우유', '③ 메밀', '④ 땅콩', '⑤ 대두', '⑥ 밀', 
-  '⑦ 고등어', '⑧ 게', '⑨ 새우', '⑩ 돼지고기', '⑪ 복숭아', '⑫ 토마토', 
-  '⑬ 아황산염', '⑭ 호두', '⑮ 닭고기', '⑯ 소고기', '⑰ 오징어', '⑱ 조개류(굴, 전복, 홍합 포함)'
-];
 
 function Mypage() {
   const [basicInfo, setBasicInfo] = useState({
     nickname: '',
     username: '',
     password: '',
-    passwordConfirm: '',
   });
 
-// 알레르기 & 조리도구를 객체로 변경
-  const [allergies, setAllergies] = useState(InitialState(ALLERGIES_LIST));
-  const [tools, setTools] = useState(InitialState(TOOLS_LIST));
-  
-  const {show, hide} = useGlobalLoading();
+  // 알레르기 상태와 입력창 상태
+  const [allergyInput, setAllergyInput] = useState('');
+  const [allergies, setAllergies] = useState([]);
 
-  // DB에서 사용자 정보 불러오기 & 로딩 페이지
+  // 조리도구 선택 상태 (DB에서 불러온 값으로 초기화될 예정)
+  const [tools, setTools] = useState({
+    wok: false,
+    microwave: false,
+    bigPot: false,
+    oven: false,
+    smallPot: false,
+    fryer: false,
+  });
+
+  // DB에서 사용자 정보 불러오기
   useEffect(() => {
-    let alive = true;
-
     //API 호출
     const fetchUserInfo = async () => {
-      show();
-
       try {
         // localStorage에서 JWT 토큰 가져오기
         const token = localStorage.getItem('token');
         if (!token) {
           alert('로그인이 필요합니다.');
-          window.location.href = '/Userlogin';
+          window.location.href = '/login';
           return;
         }
-         // API 호출 - 백엔드의 /api/profile 엔드포인트 사용
+
+        // API 호출 - 백엔드의 /api/profile 엔드포인트 사용
         const response = await fetch('http://localhost:3001/api/profile', {
           method: 'GET',
           headers: {
@@ -65,39 +45,37 @@ function Mypage() {
           },
         });
 
+        if (!response.ok) {
+          throw new Error('사용자 정보를 불러오는데 실패했습니다.');
+        }
+
         const dataFromDb = await response.json(); // 서버로부터 받은 JSON 데이터
-        if (!alive) return;
+
         // 백엔드에서 받은 사용자 정보로 상태 업데이트
         if (dataFromDb.success && dataFromDb.user) {
-                  setBasicInfo({
-                    nickname: dataFromDb.user.nickname,
-                    username: dataFromDb.user.username,
-                    password: '', // 보안상 비밀번호는 빈 문자열로 설정
-                  });
-                
-                  setAllergies(prev => ({ ...prev, ...(dataFromDb.user.allergies || {}) }));
-                  setTools(prevTools => ({
-                ...prevTools, // 모든 도구를 false 초기화
-                ...(dataFromDb.user.tools || {}) // 서버에서 받은 값으로 덮어쓰기
-            }));
-                } else {
-                  throw new Error('사용자 정보 형식이 올바르지 않습니다.');
-                }
+          setBasicInfo({
+            nickname: dataFromDb.user.nickname,
+            username: dataFromDb.user.username,
+            password: '', // 보안상 비밀번호는 빈 문자열로 설정
+          });
+          // 알레르기와 조리도구는 현재 DB에 없으므로 기본값 사용
+          setAllergies([]);
+          setTools({ wok: false, microwave: false, bigPot: false, oven: false, smallPot: false, fryer: false });
+        } else {
+          throw new Error('사용자 정보 형식이 올바르지 않습니다.');
+        }
       } catch (error) {
-        if (alive) return;
         console.error('사용자 정보를 불러오는 중 오류 발생:', error);
         alert('사용자 정보를 불러오는데 실패했습니다.');
-      } finally {
-        hide();
+        // 에러 발생 시 기본값으로 초기화
+        setBasicInfo({ nickname: '', username: '', password: '' });
+        setAllergies([]);
+        setTools({ wok: false, microwave: false, bigPot: false, oven: false, smallPot: false, fryer: false });
       }
     };
 
     fetchUserInfo();
-
-    return () => {
-      alive = false;
-    };
-  }, [show, hide]);
+  }, []); // 빈 배열을 두어 컴포넌트가 처음 마운트될 때만 실행되도록 함
 
   // 기본 정보 입력값 변경 핸들러
   const handleBasicChange = (e) => {
@@ -105,15 +83,28 @@ function Mypage() {
     setBasicInfo((prev) => ({ ...prev, [name]: value }));
   };
 
-// 알레르기 토글 핸들러
-  const toggleAllergy = (allergyName) => {
-    setAllergies((prev) => ({
-      ...prev,
-      [allergyName]: !prev[allergyName]
-    }));
+  // 알레르기 입력 텍스트 변경 핸들러
+  const handleAllergyInputChange = (e) => {
+    setAllergyInput(e.target.value);
   };
 
-  // 조리도구 토글 핸들러
+  // 알레르기 태그 추가 (엔터 키 입력 시)
+  const handleAllergyKeyDown = (e) => {
+    if (e.key === 'Enter' && e.nativeEvent.isComposing === false && allergyInput.trim() !== '') {
+      if (!allergies.includes(allergyInput.trim())) {
+        setAllergies([...allergies, allergyInput.trim()]);
+      }
+      setAllergyInput(''); // 입력창 초기화
+      e.preventDefault(); // 폼 제출 방지
+    }
+  };
+
+  // 알레르기 태그 제거
+  const removeAllergyTag = (tagToRemove) => {
+    setAllergies(allergies.filter((tag) => tag !== tagToRemove));
+  };
+
+  // 조리도구 선택 토글 핸들러
   const toggleTool = (toolName) => {
     setTools((prev) => ({
       ...prev,
@@ -124,32 +115,15 @@ function Mypage() {
   // 폼 제출 핸들러 (기본 정보 수정)
   const handleBasicSubmit = async (e) => {
     e.preventDefault(); // 폼의 기본 제출 동작(새로고침) 방지
-    
-    console.log('기본 정보 수정 제출 데이터:', basicInfo); 
 
-    const {nickname, username, password, passwordConfirm} = basicInfo;
-
-
-      // 비밀번호 일치 여부 확인
-      if(password || passwordConfirm) {
-        if (password !== passwordConfirm) {
-          alert("비밀번호가 일치하지 않습니다.");
-          return; // 비밀번호 불일치 시 함수 실행 중단
-        }
-      }
+    console.log('기본 정보 수정 제출 데이터:', basicInfo);
 
     try {
-      const updateData = {nickname, username};
-
-      if (password && passwordConfirm) {
-        updateData.password = password;
-      }
-    
-        // localStorage에서 JWT 토큰 가져오기
+      // localStorage에서 JWT 토큰 가져오기
       const token = localStorage.getItem('token');
       if (!token) {
         alert('로그인이 필요합니다.');
-        window.location.href = '/Userlogin';
+        window.location.href = '/login';
         return;
       }
 
@@ -157,7 +131,8 @@ function Mypage() {
       const response = await fetch('http://localhost:3001/api/profile', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, // JWT 토큰 추가
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // JWT 토큰 추가
         },
         body: JSON.stringify({ // 서버로 보낼 데이터
           nickname: basicInfo.nickname,
@@ -167,19 +142,11 @@ function Mypage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '기본 정보 수정에 실패했습니다.');
+        throw new Error('기본 정보 수정에 실패했습니다.');
       }
       const result = await response.json(); // 서버 응답 데이터
       console.log('기본 정보 수정 성공:', result);
       alert('기본 정보가 성공적으로 수정되었습니다!');
-
-       // 성공 후 비밀번호 입력 필드 초기화
-      setBasicInfo(prev => ({
-        ...prev,
-        password: '',
-        passwordConfirm: '',
-      }));
 
     } catch (error) {
       console.error('기본 정보 수정 중 오류 발생:', error);
@@ -273,64 +240,59 @@ function Mypage() {
       <section className="BasicUserContainer">
         <h2>회원 기본 정보 수정</h2>
         <form onSubmit={handleBasicSubmit}>
-          <label htmlFor="nick">닉네임</label>
-          <input 
-          id="nick" 
-          type="text" 
-          value={basicInfo.nickname} 
-          onChange={handleBasicChange} />
-          <label htmlFor="id">아이디</label>
-          <input 
-          id="id"
-          type="text" 
-          value={basicInfo.username} 
-          onChange={handleBasicChange} />
-          <label htmlFor="password">비밀번호</label>
+          <label>닉네임</label>
+          <input name="nickname" value={basicInfo.nickname} onChange={handleBasicChange} />
+          <label>아이디</label>
+          <input name="username" value={basicInfo.username} onChange={handleBasicChange} />
+          <label>비밀번호</label>
           <input
-            id="password"
+            name="password"
             type="password"
             value={basicInfo.password}
             onChange={handleBasicChange}
             />
-            <label htmlFor="passwordConfirm">비밀번호 확인</label>
-          <input
-            id="passwordConfirm"
-            type="password"
-            value={basicInfo.passwordConfirm}
-            onChange={handleBasicChange}
-            placeholder="비밀번호를 다시 입력하세요"  />
-          <button type="submit" className="mypage-submit-button">수정 완료</button>
+          <button type="submit">수정 완료</button>
         </form>
       </section>
       <section className='DetailUserContainer'>
         <h2>회원 상세 정보 수정</h2>
         <form onSubmit={handleDetailSubmit}>
           <label>알레르기</label>
-            <div className="allergies-list">
-              {Object.entries(allergies).map(([allergyName, isSelected]) => (
-                <button
-                  key={allergyName}
-                  className={`allergy-button ${isSelected ? 'selected' : ''}`}
-                  onClick={() => toggleAllergy(allergyName)}
-                  type="button"
-                >
-                  {allergyName}
-                </button>
-              ))}
+            <input
+              type="text"
+              placeholder="알레르기 입력 후 엔터"
+              value={allergyInput}
+              onChange={handleAllergyInputChange}
+              onKeyDown={handleAllergyKeyDown}
+            />
+            <div className="allergy-tags">
+              {allergies.map((tag) => (
+              <span key={tag} className="allergy-tag">
+              {tag} <button type="button" onClick={() => removeAllergyTag(tag)}>X</button>
+            </span>
+            ))}
             </div>
           <label>조리도구</label>
             <div className="tools">
-              {Object.entries(tools).map(([toolName, isSelected]) => (
-                <button
-                    key={toolName}
-                    className={`tool-button ${isSelected ? 'selected' : ''}`}
-                    onClick={() => toggleTool(toolName)}
-                    type="button"
-                  >{toolName}
-                </button>
+            {/* Object.entries로 key(도구명)와 value(선택여부)를 동시에 가져옵니다. */}
+            {Object.entries(tools).map(([toolKey, selected]) => (
+              <button
+                key={toolKey}
+                className={`tool-button ${selected ? 'selected' : ''}`}
+                onClick={() => toggleTool(toolKey)}
+                type="button" // form 내부의 버튼은 기본적으로 submit 타입이므로 명시적으로 button 타입 지정
+              >
+              {/* toolKey에 따라 사용자에게 보여줄 텍스트를 결정합니다. */}
+              {toolKey === 'wok' ? '웍' :
+              toolKey === 'microwave' ? '전자레인지' :
+              toolKey === 'bigPot' ? '큰 냄비' :
+              toolKey === 'oven' ? '오븐' :
+              toolKey === 'smallPot' ? '작은 냄비' :
+              toolKey === 'fryer' ? '에어프라이어' : toolKey /* 만약 다른 이름이 있다면 그대로 보여줌 */}
+              </button>
             ))}
             </div>
-            <button type="submit" className='mypage-submit-button'>수정 완료</button>
+            <button type="submit">수정 완료</button>
         </form>
       </section>
       <button onClick={openModal} className="withdraw-btn">회원 탈퇴</button>
