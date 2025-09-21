@@ -58,7 +58,7 @@ function Mypage() {
             username: dataFromDb.user.username,
             password: '', // 보안상 비밀번호는 빈 문자열로 설정
           });
-          // 알레르기와 조리도구는 현재 DB에 없으므로 기본값 사용
+          // 알레르기와 조리도구는 현재 DB에 없으므로 기본값 사용낵
           setAllergies([]);
           setTools({ wok: false, microwave: false, bigPot: false, oven: false, smallPot: false, fryer: false });
         } else {
@@ -163,11 +163,19 @@ function Mypage() {
 
     // DB 업데이트 API 호출 구현
      try {
+      // JWT 토큰 가져오기
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('로그인이 필요합니다.');
+        window.location.href = '/Userlogin';
+        return;
+      }
+
       const response = await fetch('http://localhost:3001/api/user/detailinfo', {
         method: 'PUT', // 또는 'PATCH'
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${AuthToken}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(detailData),
       });
