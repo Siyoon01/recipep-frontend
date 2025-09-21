@@ -42,27 +42,41 @@ function InfoRegistration() {
     console.log('선택된 조리도구:', selectedTools);
     
     try {
-      // 백엔드 API 호출 예시 (필요시 사용)
+      // JWT 토큰 확인
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/user-info', {
-        method: 'POST',
+      if (!token) {
+        alert('로그인이 필요합니다.');
+        navigate('/Userlogin');
+        return;
+      }
+
+      // 조리도구를 백엔드 형식으로 변환
+      const toolsObject = {};
+      cookingTools.forEach(tool => {
+        toolsObject[tool] = selectedTools.includes(tool);
+      });
+
+      const response = await fetch('http://localhost:3001/api/user/detailinfo', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           allergies: allergyTags,
-          cookingTools: selectedTools,
+          tools: toolsObject,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
         console.log('정보 등록 성공:', data);
+        alert('정보가 성공적으로 등록되었습니다!');
         // 다음 단계(재료 등록 페이지)로 이동
         navigate('/ingredient-registration');
       } else {
-        console.error('정보 등록 실패:', response.status);
+        const errorData = await response.json();
+        console.error('정보 등록 실패:', errorData);
         alert('정보 등록에 실패했습니다.');
       }
     } catch (error) {
